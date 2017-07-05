@@ -1,0 +1,24 @@
+{
+  "name": "thexeffect",
+  "version": "0.0.1",
+  "description": "AWS Lambda backend for Alexa skill",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bradleyjkemp/theXeffect.git"
+  },
+  "author": "",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/bradleyjkemp/theXeffect/issues"
+  },
+  "homepage": "https://github.com/bradleyjkemp/theXeffect#readme",
+  "dependencies": {
+    "alexa-sdk": "^1.0.11",
+    "aws-sdk": "^2.80.0",
+    "dynamodb": "^1.0.0"
+  }
+}
