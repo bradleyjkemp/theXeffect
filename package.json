@@ -4,7 +4,8 @@
   "description": "AWS Lambda backend for Alexa skill",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "bundle": "google-closure-compiler-js --process_common_js_modules index.js > bundle.js"
   },
   "repository": {
     "type": "git",
@@ -19,6 +20,8 @@
   "dependencies": {
     "alexa-sdk": "^1.0.11",
     "aws-sdk": "^2.80.0",
-    "dynamodb": "^1.0.0"
-  }
+    "dynamodb": "^1.0.0",
+    "moment": "^2.18.1"
+  },
+  "devDependencies": {}
 }

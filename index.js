@@ -2,16 +2,15 @@
 
 var Alexa = require('alexa-sdk');
 var APP_ID = process.env.APP_ID;
-var AWS = require('aws-sdk')
+var AWS = require('aws-sdk');
 var dynamodb = new AWS.DynamoDB.DocumentClient();
-var recipes = {}; // delete me
+var moment = require('moment');
+
+var TIMEOUT = 108000000; // 30 hours in ms
 
 exports.handler = function(event, context, callback) {
     var alexa = Alexa.handler(event, context);
     alexa.appId = APP_ID;
-    console.log('alexa.APP_ID is ', alexa.APP_ID, APP_ID);
-    // To enable string internationalization (i18n) features, set a resources object.
-    alexa.resources = languageStrings;
     alexa.registerHandlers(handlers);
     alexa.execute();
 };
@@ -42,7 +41,10 @@ var handlers = {
                 }
                 console.log('gotData for user', self.event.session.user.userId, data);
                 
-                data.Item.streakCount = (data.Item.streakCount || 0) + 1;
+                var now = Date.now();
+                var lostStreak = now - data.Item.lastDone > TIMEOUT;
+
+                data.Item.streakCount = (!lostStreak && data.Item.streakCount || 0) + 1;
                 data.Item.lastDone = Date.now();
                 data.Item.userId = self.event.session.user.userId;
                 
@@ -56,48 +58,50 @@ var handlers = {
                         return;
                     }
                     console.log('setData', data);
-                    self.emit(':tell', 'You are now on a streak of '+data.Item.streakCount); 
+                    
+                    if (lostStreak) {
+                        self.attributes['speechOutput'] = 'Sorry, you weren\'t in time to save your streak.';
+                    } else {
+                        self.attributes['speechOutput'] = 'Congratulations, you are now on a streak of '+data.Item.streakCount+' days.';
+                    }
+                    self.emit(':tellWithCard', self.attributes['speechOutput'], data.Item.streakCount+' days', self.attributes['speechOutput']);
                 });
             });
     },
-    'RecipeIntent': function () {
-        var itemSlot = this.event.request.intent.slots.Item;
-        var itemName;
-        if (itemSlot && itemSlot.value) {
-            itemName = itemSlot.value.toLowerCase();
-        }
-
-        var cardTitle = this.t("DISPLAY_CARD_TITLE", this.t("SKILL_NAME"), itemName);
-        var recipes = this.t("RECIPES");
-        var recipe = recipes[itemName];
-
-        if (recipe) {
-            this.attributes['speechOutput'] = recipe;
-            this.attributes['repromptSpeech'] = this.t("RECIPE_REPEAT_MESSAGE");
-            this.emit(':tellWithCard', recipe, this.attributes['repromptSpeech'], cardTitle, recipe);
-        } else {
-            var speechOutput = this.t("RECIPE_NOT_FOUND_MESSAGE");
-            var repromptSpeech = this.t("RECIPE_NOT_FOUND_REPROMPT");
-            if (itemName) {
-                speechOutput += this.t("RECIPE_NOT_FOUND_WITH_ITEM_NAME", itemName);
-            } else {
-                speechOutput += this.t("RECIPE_NOT_FOUND_WITHOUT_ITEM_NAME");
+    'ProgressIntent': function () {
+        var self = this;
+        dynamodb.get({
+            TableName: 'theXeffect',
+            Key: {
+                userId: self.event.session.user.userId
             }
-            speechOutput += repromptSpeech;
-
-            this.attributes['speechOutput'] = speechOutput;
-            this.attributes['repromptSpeech'] = repromptSpeech;
-
-            this.emit(':ask', speechOutput, repromptSpeech);
-        }
+        }, function (err, data) {
+            if (err) {
+                console.error(err, data);
+                return;
+            }
+            console.log('gotData for user', self.event.session.user.userId, data);
+            
+            var now = Date.now();
+            var lostStreak = now - data.Item.lastDone > TIMEOUT;
+            
+            if (lostStreak) {
+                self.attributes['speechOutput'] = 'Sorry, you aren\'t in time to save your streak.\nYou were on a streak of '+data.Item.streakCount+'.';
+            } else {
+                var msLeft = TIMEOUT - (now - data.Item.lastDone);
+                self.attributes['speechOutput'] = 'You are currently on a streak of '+data.Item.streakCount+' days.\nYou have '+moment.duration(msLeft, 'ms').humanize()+' left to maintain your streak';
+            }
+            
+            self.emit(':tellWithCard', self.attributes['speechOutput'], data.Item.streakCount+' days', self.attributes['speechOutput']); 
+        });
     },
     'AMAZON.HelpIntent': function () {
         this.attributes['speechOutput'] = this.t("HELP_MESSAGE");
         this.attributes['repromptSpeech'] = this.t("HELP_REPROMPT");
-        this.emit(':ask', this.attributes['speechOutput'], this.attributes['repromptSpeech'])
+        this.emit(':ask', this.attributes['speechOutput'], this.attributes['repromptSpeech']);
     },
     'AMAZON.RepeatIntent': function () {
-        this.emit(':ask', this.attributes['speechOutput'], this.attributes['repromptSpeech'])
+        this.RECIPE_emit(':ask', this.attributes['speechOutput'], this.attributes['repromptSpeech']);
     },
     'AMAZON.StopIntent': function () {
         this.emit('SessionEndedRequest');
@@ -111,55 +115,14 @@ var handlers = {
     'Unhandled': function () {
         this.attributes['speechOutput'] = this.t("HELP_MESSAGE");
         this.attributes['repromptSpeech'] = this.t("HELP_REPROMPT");
-        this.emit(':ask', this.attributes['speechOutput'], this.attributes['repromptSpeech'])
+        this.emit(':ask', this.attributes['speechOutput'], this.attributes['repromptSpeech']);
     }
 };
 
-var languageStrings = {
-    "en": {
-        "translation": {
-            "RECIPES": recipes.RECIPE_EN_US,
-            "SKILL_NAME": "Minecraft Helper",
-            "WELCOME_MESSAGE": "Welcome to %s. You can ask a question like, what\'s the recipe for a chest? ... Now, what can I help you with.",
-            "WELCOME_REPROMPT": "For instructions on what you can say, please say help me.",
-            "DISPLAY_CARD_TITLE": "%s  - Recipe for %s.",
-            "HELP_MESSAGE": "You can ask questions such as, what\'s the recipe, or, you can say exit...Now, what can I help you with?",
-            "HELP_REPROMPT": "You can say things like, what\'s the recipe, or you can say exit...Now, what can I help you with?",
-            "STOP_MESSAGE": "Goodbye!",
-            "RECIPE_REPEAT_MESSAGE": "Try saying repeat.",
-            "RECIPE_NOT_FOUND_MESSAGE": "I\'m sorry, I currently do not know ",
-            "RECIPE_NOT_FOUND_WITH_ITEM_NAME": "the recipe for %s. ",
-            "RECIPE_NOT_FOUND_WITHOUT_ITEM_NAME": "that recipe. ",
-            "RECIPE_NOT_FOUND_REPROMPT": "What else can I help with?"
-        }
-    },
-    "en-US": {
-        "translation": {
-            "RECIPES" : recipes.RECIPE_EN_US,
-            "SKILL_NAME" : "American Minecraft Helper"
-        }
-    },
-    "en-GB": {
-        "translation": {
-            "RECIPES": recipes.RECIPE_EN_GB,
-            "SKILL_NAME": "British Minecraft Helper"
-        }
-    },
-    "de": {
-        "translation": {
-            "RECIPES" : recipes.RECIPE_DE_DE,
-            "SKILL_NAME" : "Assistent für Minecraft in Deutsch",
-            "WELCOME_MESSAGE": "Willkommen bei %s. Du kannst beispielsweise die Frage stellen: Welche Rezepte gibt es für eine Truhe? ... Nun, womit kann ich dir helfen?",
-            "WELCOME_REPROMPT": "Wenn du wissen möchtest, was du sagen kannst, sag einfach „Hilf mir“.",
-            "DISPLAY_CARD_TITLE": "%s - Rezept für %s.",
-            "HELP_MESSAGE": "Du kannst beispielsweise Fragen stellen wie „Wie geht das Rezept für“ oder du kannst „Beenden“ sagen ... Wie kann ich dir helfen?",
-            "HELP_REPROMPT": "Du kannst beispielsweise Sachen sagen wie „Wie geht das Rezept für“ oder du kannst „Beenden“ sagen ... Wie kann ich dir helfen?",
-            "STOP_MESSAGE": "Auf Wiedersehen!",
-            "RECIPE_REPEAT_MESSAGE": "Sage einfach „Wiederholen“.",
-            "RECIPE_NOT_FOUND_MESSAGE": "Tut mir leid, ich kenne derzeit ",
-            "RECIPE_NOT_FOUND_WITH_ITEM_NAME": "das Rezept für %s nicht. ",
-            "RECIPE_NOT_FOUND_WITHOUT_ITEM_NAME": "dieses Rezept nicht. ",
-            "RECIPE_NOT_FOUND_REPROMPT": "Womit kann ich dir sonst helfen?"
-        }
-    }
-};
+var SKILL_NAME = "The X Effect";
+var WELCOME_MESSAGE = "Welcome to %s. You can ask a question like, what\'s my current streak? or let me know that you've completed today ... Now, what can I help you with.";
+var WELCOME_REPROMPT = "For instructions on what you can say, please say help me.";
+var HELP_MESSAGE = "You can ask questions such as, what\'s my current streak, or, you can say exit...Now, what can I help you with?";
+var HELP_REPROMPT = "You can say things like, what\'s my current streak, or you can say exit...Now, what can I help you with?";
+var STOP_MESSAGE = "Goodbye!";
+var REPEAT_MESSAGE = "Try saying repeat.";

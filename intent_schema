@@ -1,0 +1,16 @@
+{
+  "intents": [
+    {
+      "intent": "CompleteDayIntent"
+    },
+    {
+      "intent": "ProgressIntent"
+    },
+    {
+      "intent": "AMAZON.PauseIntent"
+    },
+    {
+      "intent": "AMAZON.ResumeIntent"
+    }
+  ]
+}
