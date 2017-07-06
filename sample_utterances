@@ -1,8 +1,11 @@
 CompleteDayIntent I've finished today
 CompleteDayIntent Today is complete
+CompleteDayIntent Mark today as completed
 CompleteDayIntent I'm done for today
 
 ProgressIntent How am I doing
 ProgressIntent How many days have I got in a row
 ProgressIntent What's my progress
 ProgressIntent How long until my streak is broken
+ProgressIntent How long is my current streak
+ProgressIntent How long have I got before my streak is broken
